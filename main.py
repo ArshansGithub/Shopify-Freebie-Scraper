@@ -293,12 +293,12 @@ class ShopifyPagination(discord.ui.View):
 
         for key, value in products.items():
             atc_link = await ShopifyScraper.build_checkout_link(value, 1, domain)
-            if value.get("requires_shipping"):
+            if value.get("suspected_freebie"):
+                suspected_freebies.append(f"Name: {key}\nLink: {atc_link}\n\n")
+            elif value.get("requires_shipping"):
                 requires_shipping.append(f"Name: {key}\nLink: {atc_link}\n\n")
             elif not value.get("available"):
                 unavailable_items.append(f"{key} - {atc_link}")
-            elif value.get("suspected_freebie"):
-                suspected_freebies.append(f"{key} - {atc_link}")
             else:
                 does_not_require_shipping.append(f"{key} - {atc_link}")
 
@@ -416,7 +416,7 @@ class ShopifyScraper:
         headers: Dict[str, str],
         json_data: Optional[Dict[str, Any]] = None,
         cookies: Optional[Dict[str, str]] = None,
-        retries: int = 5,
+        retries: int = 10,
     ) -> httpx.Response:
         try:
             someClient = random.choice(self.clients)
@@ -494,10 +494,12 @@ class ShopifyScraper:
                 if suspected_freebie or variant["price"] == "0.00":
                     key = f'{product["title"]} - {variant["title"]}'
 
-                    if variant.get("featured_image") is None:
-                        variant["featured_image"] = await self.discover_product_image(
+                    if variant.get("featured_image") is None or variant.get("featured_image").get("src") is None:
+                        img_url = await self.discover_product_image(
                             product
                         )
+                    else:
+                        img_url = variant.get("featured_image").get("src")
 
                     results[key] = {
                         "id": variant["id"],
@@ -506,7 +508,7 @@ class ShopifyScraper:
                         "compare_at_price": variant["compare_at_price"],
                         "price": variant["price"],
                         "2nd_title": product["title"],
-                        "image_url": variant["featured_image"],
+                        "image_url": img_url,
                         "suspected_freebie": suspected_freebie,
                     }
 
@@ -523,9 +525,9 @@ class ShopifyScraper:
 
         for multiplier in range(0, 10):
             tasks = []
-            for e in range(100 * multiplier, 100 * (multiplier + 1)):
+            for e in range(50 * multiplier, 50 * (multiplier + 1)):
 
-                url = f"{products_base}?page={e}&limit=250"
+                url = f"{products_base}?page={e + 1}&limit=250"
                 tasks.append(self.make_request("GET", url, temp))
 
             responses = await asyncio.gather(*tasks)
