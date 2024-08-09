@@ -304,12 +304,35 @@ class ShopifyPagination(discord.ui.View):
 
         file_contents += "---Requires Shipping---\n"
         file_contents += "\n".join(requires_shipping)
+        
+        if requires_shipping:
+            allIds = [product.get("id") for product in products.values() if product.get("requires_shipping")]
+            link = await ShopifyScraper.build_all_to_cart_link(allIds, domain)
+            file_contents += f"\n\nATC: {link}\n\n"
+        
         file_contents += "\n\n---Does Not Require Shipping---\n"
         file_contents += "\n".join(does_not_require_shipping)
+        
+        if does_not_require_shipping:
+            allIds = [product.get("id") for product in products.values() if not product.get("requires_shipping")]
+            link = await ShopifyScraper.build_all_to_cart_link(allIds, domain)
+            file_contents += f"\n\nATC: {link}\n\n"
+        
         file_contents += "\n\n---Suspected Freebies---\n"
         file_contents += "\n".join(suspected_freebies)
+        
+        if suspected_freebies:
+            allIds = [product.get("id") for product in products.values() if product.get("suspected_freebie")]
+            link = await ShopifyScraper.build_all_to_cart_link(allIds, domain)
+            file_contents += f"\n\nATC: {link}\n\n"
+        
         file_contents += "\n\n---Unavailable Items---\n"
         file_contents += "\n".join(unavailable_items)
+        
+        if unavailable_items:
+            allIds = [product.get("id") for product in products.values() if not product.get("available")]
+            link = await ShopifyScraper.build_all_to_cart_link(allIds, domain)
+            file_contents += f"\n\nATC: {link}\n\n"
 
         return file_contents
 
@@ -431,7 +454,7 @@ class ShopifyScraper:
 
             if response is None or response.status_code == 403:
                 return await self.make_request(
-                    method, url, headers, json_data, cookies, retries - 1
+                    method, url, headers, json_data, cookies, retries - 2
                 )
 
             return response
@@ -489,9 +512,10 @@ class ShopifyScraper:
         results = {}
 
         for product in products:
-            suspected_freebie = "FREE" in product["title"].upper()
+            #suspected_freebie = "FREE" in product["title"].upper()
+            suspected_freebie = False
             for variant in product.get("variants", []):
-                if suspected_freebie or variant["price"] == "0.00":
+                if suspected_freebie or variant["price"] == "0.00" or float(variant["price"]) < 0.99:
                     key = f'{product["title"]} - {variant["title"]}'
 
                     if variant.get("featured_image") is None or variant.get("featured_image").get("src") is None:
